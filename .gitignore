@@ -1,0 +1,6 @@
+data/doorcam.db
+*.jpg
+*.png
+__pycache__/
+*.pyc
+.env

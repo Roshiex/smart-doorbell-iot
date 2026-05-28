@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Doorbell Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; padding: 24px; }
+    h1 { font-size: 1.6rem; margin-bottom: 4px; color: #ffffff; }
+    .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 24px; }
+    .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* Stats */
+    .stats { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+    .stat-card { background: #1a1d27; border-radius: 12px; padding: 20px 28px; flex: 1; min-width: 140px; border: 1px solid #2a2d3a; }
+    .stat-card .label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-card .value { font-size: 2.2rem; font-weight: 700; margin-top: 4px; }
+    .stat-card.total .value { color: #60a5fa; }
+    .stat-card.motion .value { color: #f97316; }
+    .stat-card.button .value { color: #a78bfa; }
+
+    /* Chart */
+    .chart-section { background: #1a1d27; border-radius: 12px; padding: 20px; margin-bottom: 28px; border: 1px solid #2a2d3a; }
+    .chart-section h2 { font-size: 1rem; color: #ccc; margin-bottom: 16px; }
+    canvas { max-height: 200px; }
+
+    /* Events */
+    .events-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .events-header h2 { font-size: 1rem; color: #ccc; }
+    .refresh-info { font-size: 0.75rem; color: #555; }
+    .events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .event-card { background: #1a1d27; border-radius: 12px; overflow: hidden; border: 1px solid #2a2d3a; transition: border-color 0.2s; }
+    .event-card:hover { border-color: #444; }
+    .event-card img { width: 100%; height: 160px; object-fit: cover; display: block; background: #111; }
+    .event-card .no-img { width: 100%; height: 160px; background: #111; display: flex; align-items: center; justify-content: center; color: #333; font-size: 0.8rem; }
+    .event-card .info { padding: 12px 14px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .badge.motion { background: #431407; color: #fb923c; }
+    .badge.button { background: #2e1065; color: #c084fc; }
+    .event-time { font-size: 0.82rem; color: #aaa; }
+    .event-device { font-size: 0.75rem; color: #555; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+  <h1>🔔 Smart Doorbell Dashboard</h1>
+  <p class="subtitle"><span class="status-dot"></span>Live — refreshes every 10 seconds</p>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card total">
+      <div class="label">Total Events</div>
+      <div class="value" id="stat-total">—</div>
+    </div>
+    <div class="stat-card motion">
+      <div class="label">Motion Events</div>
+      <div class="value" id="stat-motion">—</div>
+    </div>
+    <div class="stat-card button">
+      <div class="label">Button Presses</div>
+      <div class="value" id="stat-button">—</div>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-section">
+    <h2>Events — Last 7 Days</h2>
+    <canvas id="dailyChart"></canvas>
+  </div>
+
+  <!-- Events -->
+  <div class="events-header">
+    <h2>Recent Events</h2>
+    <span class="refresh-info" id="last-updated"></span>
+  </div>
+  <div class="events-grid" id="events-grid"></div>
+
+  <script>
+    let chart = null;
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleString();
+    }
+
+    async function loadStats() {
+      const res = await fetch('/api/stats');
+      const data = await res.json();
+      document.getElementById('stat-total').textContent = data.total;
+      document.getElementById('stat-motion').textContent = data.motion;
+      document.getElementById('stat-button').textContent = data.button;
+
+      const daily = data.daily.reverse();
+      const labels = daily.map(d => d.date);
+      const counts = daily.map(d => d.count);
+
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = counts;
+        chart.update();
+      } else {
+        chart = new Chart(document.getElementById('dailyChart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Events',
+              data: counts,
+              backgroundColor: '#3b82f6',
+              borderRadius: 6,
+            }]
+          },
+          options: {
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#888' }, grid: { color: '#2a2d3a' } },
+              y: { ticks: { color: '#888', stepSize: 1 }, grid: { color: '#2a2d3a' }, beginAtZero: true }
+            }
+          }
+        });
+      }
+    }
+
+    async function loadEvents() {
+      const res = await fetch('/api/events');
+      const events = await res.json();
+      const grid = document.getElementById('events-grid');
+      grid.innerHTML = events.map(e => `
+        <div class="event-card">
+          ${e.image
+            ? `<img src="/image/${e.image}" alt="snapshot" loading="lazy">`
+            : `<div class="no-img">No image</div>`}
+          <div class="info">
+            <span class="badge ${e.type}">${e.type}</span>
+            <div class="event-time">${formatTime(e.timestamp)}</div>
+            <div class="event-device">${e.device}</div>
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    async function refresh() {
+      await Promise.all([loadStats(), loadEvents()]);
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>

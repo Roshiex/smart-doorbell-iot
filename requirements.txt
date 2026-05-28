@@ -1,0 +1,6 @@
+paho-mqtt
+flask
+opencv-python
+picamera2
+requests
+numpy

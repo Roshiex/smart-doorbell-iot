@@ -3,6 +3,7 @@
 A Raspberry Pi-based smart doorbell camera system that detects motion and button presses, captures images, stores events, sends push notifications, and displays
  a live web dashboard.
 
+https://youtu.be/nm4CJoc6oYk
 ---
 
 ## Architecture

@@ -132,3 +132,8 @@ smart-doorbell-iot/
 3. The event is published to the MQTT broker as a JSON payload
 4. The backend service receives the event, saves it to SQLite, and sends a push notification via ntfy
 5. The dashboard polls `/api/events` and `/api/stats` every 10 seconds to display live updates
+
+## Reflection
+**What I'd do differently:**
+- Deploy the dashboard to a cloud server so it is accessible remotely
+- Add a proper WebSocket connection for instant dashboard updates
